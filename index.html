@@ -2,16 +2,33 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PodcastHub - Scienziati in Onda</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>PodcastHub Pro - Scienziati in Onda</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         * { font-family: 'Inter', sans-serif; }
         
         .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .gradient-bg-physics {
+            background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+        }
+        
+        .gradient-bg-biology {
+            background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+        }
+        
+        .gradient-bg-chemistry {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+        }
+        
+        .gradient-bg-astronomy {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
         }
         
         .card-hover {
@@ -31,13 +48,41 @@
         .qr-code:hover {
             transform: scale(1.05);
         }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        .toast {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .focus-visible:focus-visible {
+            outline: 3px solid #667eea;
+            outline-offset: 2px;
+        }
+        
+        button:focus-visible, input:focus-visible, select:focus-visible {
+            outline: 3px solid #667eea;
+            outline-offset: 2px;
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
 
     <!-- MODALE AGGIUNGI PODCAST -->
     <div id="modalePodcast" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
             <div class="gradient-bg rounded-t-3xl p-6">
                 <h2 class="text-2xl font-bold text-white text-center">🎙️ Nuovo Podcast</h2>
                 <p class="text-white/80 text-center text-sm">Scienziati in Onda</p>
@@ -51,6 +96,24 @@
                 </div>
                 
                 <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">📚 Categoria *</label>
+                    <select id="categoriaPodcast" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                        <option value="fisica">🔬 Fisica</option>
+                        <option value="biologia">🧬 Biologia</option>
+                        <option value="chimica">🧪 Chimica</option>
+                        <option value="astronomia">🌍 Astronomia</option>
+                        <option value="matematica">📐 Matematica</option>
+                        <option value="medicina">💊 Medicina</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">⏱️ Durata (minuti)</label>
+                    <input type="text" id="durataPodcast" placeholder="es. 15:30" 
+                           class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                </div>
+                
+                <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">📱 QR Code *</label>
                     <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-purple-500 cursor-pointer"
                          onclick="document.getElementById('fileQr').click()">
@@ -58,7 +121,7 @@
                         <div id="qrPlaceholder" class="py-8">
                             <div class="text-4xl mb-2">📷</div>
                             <p class="text-gray-500 text-sm">Clicca per caricare il QR code</p>
-                            <p class="text-gray-400 text-xs">JPG, PNG (max 5MB)</p>
+                            <p class="text-gray-400 text-xs">JPG, PNG, WEBP (max 5MB)</p>
                         </div>
                         <img id="qrPreview" class="hidden mx-auto max-h-32 rounded-lg">
                     </div>
@@ -70,11 +133,35 @@
                            class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
                 </div>
                 
-                <button onclick="pubblicaPodcast()" class="w-full gradient-bg text-white font-bold py-3 rounded-xl">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="privatoPodcast" class="w-5 h-5">
+                    <label class="text-sm text-gray-700">🔒 Podcast privato (solo tu puoi vederlo)</label>
+                </div>
+                
+                <button onclick="pubblicaPodcast()" class="w-full gradient-bg text-white font-bold py-3 rounded-xl hover:opacity-90 transition">
                     📡 Pubblica Podcast
                 </button>
-                <button onclick="chiudiModale()" class="w-full text-gray-500 font-semibold py-2 rounded-xl">
+                <button onclick="chiudiModale()" class="w-full text-gray-500 font-semibold py-2 rounded-xl hover:bg-gray-100 transition">
                     Annulla
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALE STATISTICHE -->
+    <div id="modaleStatistiche" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-2xl mx-4">
+            <div class="gradient-bg rounded-t-3xl p-6">
+                <h2 class="text-2xl font-bold text-white text-center">📊 Statistiche Podcast</h2>
+            </div>
+            <div class="p-6">
+                <canvas id="statisticheChart" class="w-full h-64"></canvas>
+                <div class="mt-4 text-center text-gray-600">
+                    <p>🎧 Ascolti totali: <span id="totaleAscolti" class="font-bold text-purple-600">0</span></p>
+                    <p>👁️ Visualizzazioni: <span id="totaleVisualizzazioni" class="font-bold text-blue-600">0</span></p>
+                </div>
+                <button onclick="chiudiModaleStatistiche()" class="mt-4 w-full gradient-bg text-white font-bold py-2 rounded-xl">
+                    Chiudi
                 </button>
             </div>
         </div>
@@ -82,12 +169,12 @@
 
     <!-- LOGIN CON NOME AUTORE -->
     <div id="schermataLogin" class="flex items-center justify-center min-h-screen p-4">
-        <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
+        <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md fade-in">
             <div class="text-center mb-8">
                 <div class="gradient-bg w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                     <span class="text-4xl">🎙️</span>
                 </div>
-                <h1 class="text-3xl font-bold text-gray-800 mb-2">PodcastHub</h1>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">PodcastHub Pro</h1>
                 <p class="text-gray-500">Scienziati in Onda</p>
             </div>
             
@@ -99,10 +186,10 @@
                 <input type="password" id="inputPassword" placeholder="Password" 
                        class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
                 
-                <button onclick="registraUtente()" class="w-full bg-gray-800 text-white font-bold py-3 rounded-xl">
+                <button onclick="registraUtente()" class="w-full bg-gray-800 text-white font-bold py-3 rounded-xl hover:bg-gray-700 transition">
                     📝 Registrati
                 </button>
-                <button onclick="accediUtente()" class="w-full gradient-bg text-white font-bold py-3 rounded-xl">
+                <button onclick="accediUtente()" class="w-full gradient-bg text-white font-bold py-3 rounded-xl hover:opacity-90 transition">
                     🔑 Accedi
                 </button>
             </div>
@@ -113,38 +200,413 @@
 
     <!-- APP PRINCIPALE -->
     <div id="schermataApp" class="hidden">
-        <div class="gradient-bg px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+        <div class="gradient-bg px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-50 gap-3">
             <div>
-                <h1 class="font-bold text-2xl text-white">🎙️ PodcastHub</h1>
+                <h1 class="font-bold text-2xl text-white">🎙️ PodcastHub Pro</h1>
                 <p class="text-white/80 text-sm">Scienziati in Onda</p>
             </div>
-            <div class="flex gap-3">
-                <button onclick="apriModale()" class="bg-white/20 text-white px-5 py-2 rounded-xl font-semibold hover:bg-white/30">
+            <div class="flex gap-3 flex-wrap">
+                <button onclick="apriModale()" class="bg-white/20 text-white px-5 py-2 rounded-xl font-semibold hover:bg-white/30 transition">
                     ➕ Aggiungi
                 </button>
-                <button onclick="esciUtente()" class="bg-red-500/80 text-white px-5 py-2 rounded-xl font-semibold hover:bg-red-600">
+                <button onclick="esciUtente()" class="bg-red-500/80 text-white px-5 py-2 rounded-xl font-semibold hover:bg-red-600 transition">
                     Esci
                 </button>
             </div>
         </div>
         
-        <div class="max-w-3xl mx-auto p-6">
+        <div class="max-w-4xl mx-auto p-6">
+            <!-- Barra di ricerca e filtri -->
+            <div class="mb-6 space-y-3">
+                <input type="text" id="searchInput" placeholder="🔍 Cerca scienziato o autore..." 
+                       onkeyup="cercaPodcast()"
+                       class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                <div class="flex gap-2 flex-wrap">
+                    <button onclick="filtraPodcast('tutti')" id="filtroTutti" class="px-4 py-2 rounded-full bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700 transition">
+                        📋 Tutti
+                    </button>
+                    <button onclick="filtraPodcast('miei')" id="filtroMiei" class="px-4 py-2 rounded-full bg-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-300 transition">
+                        👤 I miei
+                    </button>
+                    <select id="filtroCategoria" onchange="filtraPerCategoria()" class="px-4 py-2 rounded-full bg-gray-200 text-gray-700 font-semibold text-sm border-none focus:outline-none">
+                        <option value="">📚 Tutte le categorie</option>
+                        <option value="fisica">🔬 Fisica</option>
+                        <option value="biologia">🧬 Biologia</option>
+                        <option value="chimica">🧪 Chimica</option>
+                        <option value="astronomia">🌍 Astronomia</option>
+                        <option value="matematica">📐 Matematica</option>
+                        <option value="medicina">💊 Medicina</option>
+                    </select>
+                </div>
+            </div>
+            
             <div id="listaPodcast" class="space-y-5"></div>
         </div>
     </div>
 
+    <!-- TOAST NOTIFICHE -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-6 py-3 rounded-xl shadow-lg hidden z-50 toast"></div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl p-8 flex flex-col items-center">
+            <div class="animate-spin text-5xl mb-4">⏳</div>
+            <p class="text-gray-700 font-semibold">Caricamento...</p>
+        </div>
+    </div>
+
     <script>
-        // CONFIGURAZIONE SUPABASE
+        // ==================== CONFIGURAZIONE ====================
         const URL_SUPABASE = 'https://lcuhojjraxgvwdleslqq.supabase.co';
         const CHIAVE_SUPABASE = 'sb_publishable_ci1TYB6NoFpMI4-6CQtKBA_jNZt6XyP';
-        
         const supabaseClient = window.supabase.createClient(URL_SUPABASE, CHIAVE_SUPABASE);
         
         let utenteAttuale = null;
         let fileSelezionato = null;
         let nomeAutore = '';
+        let tuttiPodcast = [];
+        let podcastCorrenteStatistiche = null;
+        let chartInstance = null;
+        let ultimaPubblicazione = 0;
+        const LIMITE_PUBBLICAZIONI_ORA = 5;
+        const INTERVALLO_MINUTO = 60 * 1000;
+        let pubblicazioniUltimaOra = [];
         
-        // REGISTRAZIONE CON NOME
+        // ==================== UTILITY FUNCTIONS ====================
+        function mostraToast(messaggio, tipo = 'success') {
+            const toast = document.getElementById('toast');
+            const colori = {
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                info: 'bg-blue-600'
+            };
+            toast.className = `fixed bottom-4 right-4 ${colori[tipo]} text-white px-6 py-3 rounded-xl shadow-lg z-50 toast`;
+            toast.innerHTML = messaggio;
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+        
+        function mostraLoading(mostra) {
+            const overlay = document.getElementById('loadingOverlay');
+            if (mostra) {
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
+        
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+        }
+        
+        function getGradientByCategory(categoria) {
+            const gradients = {
+                fisica: 'gradient-bg-physics',
+                biologia: 'gradient-bg-biology',
+                chimica: 'gradient-bg-chemistry',
+                astronomia: 'gradient-bg-astronomy'
+            };
+            return gradients[categoria] || 'gradient-bg';
+        }
+        
+        function getCategoryEmoji(categoria) {
+            const emoji = {
+                fisica: '🔬',
+                biologia: '🧬',
+                chimica: '🧪',
+                astronomia: '🌍',
+                matematica: '📐',
+                medicina: '💊'
+            };
+            return emoji[categoria] || '🎙️';
+        }
+        
+        function validaLinkVocaroo(link) {
+            const vocarooPattern = /^https?:\/\/(www\.)?vocaroo\.com\/[a-zA-Z0-9]+/;
+            return vocarooPattern.test(link);
+        }
+        
+        function validaQRCode(file) {
+            const tipiPermessi = ['image/jpeg', 'image/png', 'image/webp'];
+            const maxSize = 5 * 1024 * 1024;
+            
+            if (!tipiPermessi.includes(file.type)) {
+                mostraToast('Formato non supportato. Usa JPG, PNG o WEBP', 'error');
+                return false;
+            }
+            
+            if (file.size > maxSize) {
+                mostraToast('File troppo grande. Max 5MB', 'error');
+                return false;
+            }
+            
+            return true;
+        }
+        
+        function checkRateLimit() {
+            const ora = Date.now();
+            pubblicazioniUltimaOra = pubblicazioniUltimaOra.filter(t => ora - t < INTERVALLO_MINUTO);
+            
+            if (pubblicazioniUltimaOra.length >= LIMITE_PUBBLICAZIONI_ORA) {
+                mostraToast('Hai raggiunto il limite di 5 pubblicazioni all\'ora. Attendi qualche minuto.', 'error');
+                return false;
+            }
+            return true;
+        }
+        
+        // ==================== RICERCA E FILTRI ====================
+        function cercaPodcast() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const categoriaFiltro = document.getElementById('filtroCategoria').value;
+            const filtroAttivo = document.querySelector('[data-filtro-attivo]')?.dataset.filtroAttivo || 'tutti';
+            
+            let filtrati = [...tuttiPodcast];
+            
+            if (filtroAttivo === 'miei' && utenteAttuale) {
+                filtrati = filtrati.filter(p => p.author_email === utenteAttuale.email);
+            }
+            
+            if (categoriaFiltro) {
+                filtrati = filtrati.filter(p => p.categoria === categoriaFiltro);
+            }
+            
+            if (searchTerm) {
+                filtrati = filtrati.filter(p => 
+                    p.scientist_name.toLowerCase().includes(searchTerm) ||
+                    p.author_name.toLowerCase().includes(searchTerm)
+                );
+            }
+            
+            mostraPodcast(filtrati);
+        }
+        
+        function filtraPodcast(tipo) {
+            document.querySelectorAll('[data-filtro-attivo]').forEach(el => {
+                delete el.dataset.filtroAttivo;
+            });
+            
+            const btn = tipo === 'tutti' ? document.getElementById('filtroTutti') : document.getElementById('filtroMiei');
+            if (btn) btn.dataset.filtroAttivo = tipo;
+            
+            const categoriaFiltro = document.getElementById('filtroCategoria').value;
+            let filtrati = [...tuttiPodcast];
+            
+            if (tipo === 'miei' && utenteAttuale) {
+                filtrati = filtrati.filter(p => p.author_email === utenteAttuale.email);
+            }
+            
+            if (categoriaFiltro) {
+                filtrati = filtrati.filter(p => p.categoria === categoriaFiltro);
+            }
+            
+            mostraPodcast(filtrati);
+        }
+        
+        function filtraPerCategoria() {
+            cercaPodcast();
+        }
+        
+        // ==================== STATISTICHE ====================
+        async function tracciaAscolto(podcastId) {
+            if (!podcastId) return;
+            
+            const { data: podcast, error } = await supabaseClient
+                .from('podcasts')
+                .select('ascolti')
+                .eq('id', podcastId)
+                .single();
+            
+            if (!error && podcast) {
+                const nuoviAscolti = (podcast.ascolti || 0) + 1;
+                await supabaseClient
+                    .from('podcasts')
+                    .update({ ascolti: nuoviAscolti })
+                    .eq('id', podcastId);
+            }
+        }
+        
+        async function tracciaVisualizzazione(podcastId) {
+            if (!podcastId) return;
+            
+            const { data: podcast, error } = await supabaseClient
+                .from('podcasts')
+                .select('visualizzazioni')
+                .eq('id', podcastId)
+                .single();
+            
+            if (!error && podcast) {
+                const nuoveVisualizzazioni = (podcast.visualizzazioni || 0) + 1;
+                await supabaseClient
+                    .from('podcasts')
+                    .update({ visualizzazioni: nuoveVisualizzazioni })
+                    .eq('id', podcastId);
+            }
+        }
+        
+        async function apriStatistiche(podcast) {
+            podcastCorrenteStatistiche = podcast;
+            document.getElementById('modaleStatistiche').classList.remove('hidden');
+            document.getElementById('totaleAscolti').innerText = podcast.ascolti || 0;
+            document.getElementById('totaleVisualizzazioni').innerText = podcast.visualizzazioni || 0;
+            
+            const ctx = document.getElementById('statisticheChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+            
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Ascolti', 'Visualizzazioni'],
+                    datasets: [{
+                        label: 'Statistiche Podcast',
+                        data: [podcast.ascolti || 0, podcast.visualizzazioni || 0],
+                        backgroundColor: ['#8b5cf6', '#3b82f6'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        }
+        
+        function chiudiModaleStatistiche() {
+            document.getElementById('modaleStatistiche').classList.add('hidden');
+            if (chartInstance) {
+                chartInstance.destroy();
+                chartInstance = null;
+            }
+        }
+        
+        // ==================== GESTIONE PODCAST ====================
+        async function toggleVisibilita(podcast) {
+            const nuovoStato = !podcast.privato;
+            const { error } = await supabaseClient
+                .from('podcasts')
+                .update({ privato: nuovoStato })
+                .eq('id', podcast.id);
+            
+            if (!error) {
+                mostraToast(nuovoStato ? '🔒 Podcast reso privato' : '🌍 Podcast reso pubblico', 'success');
+                await caricaTuttiPodcast();
+            } else {
+                mostraToast('Errore durante il cambio di visibilità', 'error');
+            }
+        }
+        
+        function mostraPodcast(podcastList) {
+            const container = document.getElementById('listaPodcast');
+            
+            if (!podcastList || podcastList.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 fade-in"><div class="text-6xl mb-4">📭</div><p class="text-gray-500">Nessun podcast trovato</p></div>`;
+                return;
+            }
+            
+            container.innerHTML = podcastList.map(pod => {
+                const gradientClass = getGradientByCategory(pod.categoria);
+                const categoryEmoji = getCategoryEmoji(pod.categoria);
+                const isOwner = utenteAttuale?.email === pod.author_email;
+                const isPrivate = pod.privato === true;
+                
+                if (isPrivate && !isOwner) return '';
+                
+                return `
+                    <div class="bg-white rounded-2xl shadow-lg p-6 space-y-4 card-hover fade-in">
+                        <div class="${gradientClass} -mt-6 -mx-6 px-6 py-3 rounded-t-2xl">
+                            <div class="flex justify-between items-center">
+                                <span class="text-white font-semibold">${categoryEmoji} ${pod.categoria || 'Generale'}</span>
+                                ${isPrivate ? '<span class="bg-red-500/80 text-white px-2 py-1 rounded-full text-xs">🔒 Privato</span>' : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <h3 class="text-2xl font-bold text-gray-800">🧪 ${escapeHtml(pod.scientist_name)}</h3>
+                            ${pod.durata ? `<p class="text-sm text-gray-500 mt-1">⏱️ Durata: ${pod.durata}</p>` : ''}
+                        </div>
+                        
+                        ${pod.qr_url ? `
+                            <div class="flex justify-center">
+                                <img src="${pod.qr_url}" onclick="window.open('${pod.vocaroo_link}')" class="qr-code max-w-[180px] rounded-xl cursor-pointer">
+                            </div>
+                        ` : ''}
+                        
+                        <div class="mt-4">
+                            <audio controls class="w-full rounded-lg" onplay="tracciaAscolto('${pod.id}')">
+                                <source src="${pod.vocaroo_link}" type="audio/mpeg">
+                                Il tuo browser non supporta l'audio
+                            </audio>
+                        </div>
+                        
+                        <div class="border-t pt-3 text-center">
+                            <p class="text-sm text-gray-500">✍️ ${escapeHtml(pod.author_name)}</p>
+                            <p class="text-xs text-gray-400">${new Date(pod.created_at).toLocaleDateString()}</p>
+                        </div>
+                        
+                        ${isOwner ? `
+                            <div class="flex justify-center gap-4 pt-2 border-t">
+                                <button onclick="apriStatistiche(${JSON.stringify(pod).replace(/"/g, '&quot;')})" 
+                                        class="text-blue-500 text-sm hover:text-blue-700 transition flex items-center gap-1">
+                                    📊 Statistiche
+                                </button>
+                                <button onclick="toggleVisibilita(${JSON.stringify(pod).replace(/"/g, '&quot;')})" 
+                                        class="${pod.privato ? 'text-green-500' : 'text-orange-500'} text-sm hover:opacity-80 transition flex items-center gap-1">
+                                    ${pod.privato ? '🌍 Rendi Pubblico' : '🔒 Rendi Privato'}
+                                </button>
+                                <button onclick="eliminaPodcast('${pod.id}')" 
+                                        class="text-red-500 text-sm hover:text-red-700 transition flex items-center gap-1">
+                                    🗑 Elimina
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        async function caricaTuttiPodcast() {
+            mostraLoading(true);
+            
+            let query = supabaseClient
+                .from('podcasts')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            const { data, error } = await query;
+            
+            if (error) {
+                mostraToast('Errore nel caricamento dei podcast', 'error');
+                mostraLoading(false);
+                return;
+            }
+            
+            tuttiPodcast = data || [];
+            cercaPodcast();
+            mostraLoading(false);
+        }
+        
+        window.eliminaPodcast = async function(id) {
+            if (confirm('Eliminare questo podcast? Questa azione è irreversibile.')) {
+                mostraLoading(true);
+                const { error } = await supabaseClient.from('podcasts').delete().eq('id', id);
+                if (!error) {
+                    mostraToast('Podcast eliminato con successo', 'success');
+                    await caricaTuttiPodcast();
+                } else {
+                    mostraToast('Errore durante l\'eliminazione', 'error');
+                }
+                mostraLoading(false);
+            }
+        };
+        
+        // ==================== AUTH ====================
         window.registraUtente = async function() {
             const nome = document.getElementById('inputNome').value.trim();
             const email = document.getElementById('inputEmail').value;
@@ -159,8 +621,12 @@
                 msgDiv.innerHTML = '❌ Inserisci email e password';
                 return;
             }
+            if (password.length < 6) {
+                msgDiv.innerHTML = '❌ La password deve essere di almeno 6 caratteri';
+                return;
+            }
             
-            // Registrazione con metadati
+            mostraLoading(true);
             const { data, error } = await supabaseClient.auth.signUp({
                 email: email,
                 password: password,
@@ -170,32 +636,43 @@
                     }
                 }
             });
+            mostraLoading(false);
             
             if (error) {
                 msgDiv.innerHTML = '❌ ' + error.message;
+                mostraToast(error.message, 'error');
             } else {
                 msgDiv.innerHTML = '✅ Registrato! Ora accedi.';
+                mostraToast('Registrazione completata! Ora puoi accedere', 'success');
                 document.getElementById('inputNome').value = '';
             }
         };
         
-        // LOGIN EMAIL
         window.accediUtente = async function() {
             const email = document.getElementById('inputEmail').value;
             const password = document.getElementById('inputPassword').value;
             const msgDiv = document.getElementById('messaggio');
             
+            if (!email || !password) {
+                msgDiv.innerHTML = '❌ Inserisci email e password';
+                return;
+            }
+            
+            mostraLoading(true);
             const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            mostraLoading(false);
+            
             if (error) {
                 msgDiv.innerHTML = '❌ ' + error.message;
+                mostraToast(error.message, 'error');
             } else {
                 utenteAttuale = data.user;
-                // Prende il nome dai metadati dell'utente
                 nomeAutore = utenteAttuale.user_metadata?.full_name || utenteAttuale.email.split('@')[0];
                 
                 document.getElementById('schermataLogin').classList.add('hidden');
                 document.getElementById('schermataApp').classList.remove('hidden');
-                caricaTuttiPodcast();
+                await caricaTuttiPodcast();
+                mostraToast(`Benvenuto ${nomeAutore}!`, 'success');
             }
         };
         
@@ -204,52 +681,13 @@
             utenteAttuale = null;
             document.getElementById('schermataLogin').classList.remove('hidden');
             document.getElementById('schermataApp').classList.add('hidden');
+            mostraToast('Arrivederci!', 'info');
         };
         
-        // FUNZIONI PODCAST
-        async function caricaTuttiPodcast() {
-            const { data } = await supabaseClient
-                .from('podcasts')
-                .select('*')
-                .order('created_at', { ascending: false });
-            
-            const container = document.getElementById('listaPodcast');
-            
-            if (!data || data.length === 0) {
-                container.innerHTML = `<div class="text-center py-12"><div class="text-6xl mb-4">📭</div><p class="text-gray-500">Nessun podcast ancora</p></div>`;
-                return;
-            }
-            
-            container.innerHTML = data.map(pod => `
-                <div class="bg-white rounded-2xl shadow-lg p-6 space-y-4">
-                    <div class="text-center">
-                        <h3 class="text-2xl font-bold text-gray-800">🧪 ${escapeHtml(pod.scientist_name)}</h3>
-                    </div>
-                    ${pod.qr_url ? `
-                        <div class="flex justify-center">
-                            <img src="${pod.qr_url}" onclick="window.open('${pod.vocaroo_link}')" class="qr-code max-w-[180px] rounded-xl cursor-pointer">
-                        </div>
-                    ` : ''}
-                    <div class="border-t pt-3 text-center">
-                        <p class="text-sm text-gray-500">✍️ ${escapeHtml(pod.author_name)}</p>
-                        <p class="text-xs text-gray-400">${new Date(pod.created_at).toLocaleDateString()}</p>
-                    </div>
-                    ${utenteAttuale?.email === pod.author_email ? `<button onclick="eliminaPodcast('${pod.id}')" class="text-red-500 text-sm">🗑 Elimina</button>` : ''}
-                </div>
-            `).join('');
-        }
-        
-        window.eliminaPodcast = async function(id) {
-            if (confirm('Eliminare?')) {
-                await supabaseClient.from('podcasts').delete().eq('id', id);
-                caricaTuttiPodcast();
-            }
-        };
-        
-        // ANTEPRIMA QR
+        // ==================== GESTIONE QR E MODALE ====================
         window.anteprimaQR = function(input) {
             const file = input.files[0];
-            if (file) {
+            if (file && validaQRCode(file)) {
                 fileSelezionato = file;
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -258,57 +696,85 @@
                     document.getElementById('qrPreview').classList.remove('hidden');
                 };
                 reader.readAsDataURL(file);
+            } else {
+                input.value = '';
             }
         };
         
-        // MODALE
         window.apriModale = function() {
             document.getElementById('modalePodcast').classList.remove('hidden');
         };
+        
         window.chiudiModale = function() {
             document.getElementById('modalePodcast').classList.add('hidden');
+            resetModale();
         };
         
-        // PUBBLICA PODCAST
-        window.pubblicaPodcast = async function() {
-            const nome = document.getElementById('nomeScienziato').value.trim();
-            const link = document.getElementById('linkVocaroo').value.trim();
-            
-            if (!nome) { alert('Inserisci il nome dello scienziato'); return; }
-            if (!fileSelezionato) { alert('Carica un QR code'); return; }
-            if (!link) { alert('Inserisci il link Vocaroo'); return; }
-            
-            const nomeFile = Date.now() + '_' + fileSelezionato.name;
-            await supabaseClient.storage.from('podcasts').upload(nomeFile, fileSelezionato);
-            const { data: urlData } = supabaseClient.storage.from('podcasts').getPublicUrl(nomeFile);
-            
-            await supabaseClient.from('podcasts').insert([{
-                scientist_name: nome,
-                qr_url: urlData.publicUrl,
-                vocaroo_link: link,
-                author_name: nomeAutore,
-                author_email: utenteAttuale.email
-            }]);
-            
-            chiudiModale();
-            caricaTuttiPodcast();
-            alert('✅ Podcast pubblicato!');
-            
-            // Reset
+        function resetModale() {
             document.getElementById('nomeScienziato').value = '';
+            document.getElementById('categoriaPodcast').value = 'fisica';
+            document.getElementById('durataPodcast').value = '';
             document.getElementById('linkVocaroo').value = '';
+            document.getElementById('privatoPodcast').checked = false;
             document.getElementById('fileQr').value = '';
             document.getElementById('qrPlaceholder').classList.remove('hidden');
             document.getElementById('qrPreview').classList.add('hidden');
             fileSelezionato = null;
-        };
-        
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
         }
         
-        // CONTROLLO SESSIONE
+        // ==================== PUBBLICA PODCAST ====================
+        window.pubblicaPodcast = async function() {
+            const nome = document.getElementById('nomeScienziato').value.trim();
+            const categoria = document.getElementById('categoriaPodcast').value;
+            const durata = document.getElementById('durataPodcast').value.trim();
+            const link = document.getElementById('linkVocaroo').value.trim();
+            const privato = document.getElementById('privatoPodcast').checked;
+            
+            if (!nome) { mostraToast('Inserisci il nome dello scienziato', 'error'); return; }
+            if (!fileSelezionato) { mostraToast('Carica un QR code', 'error'); return; }
+            if (!link) { mostraToast('Inserisci il link Vocaroo', 'error'); return; }
+            if (!validaLinkVocaroo(link)) { mostraToast('Link Vocaroo non valido', 'error'); return; }
+            if (!checkRateLimit()) return;
+            
+            mostraLoading(true);
+            
+            try {
+                const nomeFile = `${Date.now()}_${fileSelezionato.name}`;
+                const { error: uploadError } = await supabaseClient.storage.from('podcasts').upload(nomeFile, fileSelezionato);
+                
+                if (uploadError) throw uploadError;
+                
+                const { data: urlData } = supabaseClient.storage.from('podcasts').getPublicUrl(nomeFile);
+                
+                const { error: insertError } = await supabaseClient.from('podcasts').insert([{
+                    scientist_name: nome,
+                    categoria: categoria,
+                    durata: durata,
+                    qr_url: urlData.publicUrl,
+                    vocaroo_link: link,
+                    author_name: nomeAutore,
+                    author_email: utenteAttuale.email,
+                    privato: privato,
+                    ascolti: 0,
+                    visualizzazioni: 0
+                }]);
+                
+                if (insertError) throw insertError;
+                
+                pubblicazioniUltimaOra.push(Date.now());
+                mostraToast('✅ Podcast pubblicato con successo!', 'success');
+                chiudiModale();
+                await caricaTuttiPodcast();
+                
+            } catch (error) {
+                console.error('Errore:', error);
+                mostraToast('Errore durante la pubblicazione', 'error');
+            } finally {
+                mostraLoading(false);
+            }
+        };
+        
+        // ==================== CONTROLLO SESSIONE ====================
         supabaseClient.auth.getSession().then(({ data: { session } }) => {
             if (session) {
                 utenteAttuale = session.user;
