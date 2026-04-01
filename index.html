@@ -76,6 +76,21 @@
             outline: 3px solid #667eea;
             outline-offset: 2px;
         }
+        
+        .audio-player {
+            background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+            border-radius: 12px;
+            padding: 12px;
+        }
+        
+        .audio-player audio {
+            width: 100%;
+            border-radius: 8px;
+        }
+        
+        audio::-webkit-media-controls-panel {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
@@ -131,6 +146,7 @@
                     <label class="block text-sm font-semibold text-gray-700 mb-2">🔊 Link Vocaroo *</label>
                     <input type="url" id="linkVocaroo" placeholder="https://vocaroo.com/..." 
                            class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                    <p class="text-xs text-gray-500 mt-1">Inserisci il link del tuo recording Vocaroo (es. https://vocaroo.com/1a2b3c4d5e6f)</p>
                 </div>
                 
                 <div class="flex items-center gap-3">
@@ -272,6 +288,54 @@
         const INTERVALLO_MINUTO = 60 * 1000;
         let pubblicazioniUltimaOra = [];
         
+        // ==================== FUNZIONI PER AUDIO ====================
+        function getVocarooEmbedUrl(url) {
+            if (!url) return '';
+            
+            // Estrai l'ID dal link Vocaroo
+            let match = url.match(/vocaroo\.com\/(?:embed\/)?([a-zA-Z0-9]+)/);
+            if (match) {
+                return `https://vocaroo.com/embed/${match[1]}`;
+            }
+            
+            // Prova con altri pattern
+            match = url.match(/vocaroo\.com\/(\d+)/);
+            if (match) {
+                return `https://vocaroo.com/embed/${match[1]}`;
+            }
+            
+            return url;
+        }
+        
+        function getAudioHtml(vocarooUrl, podcastId) {
+            const embedUrl = getVocarooEmbedUrl(vocarooUrl);
+            
+            // Se è un embed di Vocaroo, usa iframe
+            if (embedUrl.includes('vocaroo.com/embed')) {
+                return `
+                    <div class="audio-player">
+                        <iframe src="${embedUrl}" 
+                                width="100%" 
+                                height="60" 
+                                frameborder="0" 
+                                allow="autoplay"
+                                onload="this.style.height=this.contentWindow.document.body.scrollHeight+'px'">
+                        </iframe>
+                    </div>
+                `;
+            }
+            
+            // Fallback al tag audio normale
+            return `
+                <div class="audio-player">
+                    <audio controls class="w-full" onplay="tracciaAscolto('${podcastId}')">
+                        <source src="${vocarooUrl}" type="audio/mpeg">
+                        Il tuo browser non supporta l'audio
+                    </audio>
+                </div>
+            `;
+        }
+        
         // ==================== UTILITY FUNCTIONS ====================
         function mostraToast(messaggio, tipo = 'success') {
             const toast = document.getElementById('toast');
@@ -325,7 +389,7 @@
         }
         
         function validaLinkVocaroo(link) {
-            const vocarooPattern = /^https?:\/\/(www\.)?vocaroo\.com\/[a-zA-Z0-9]+/;
+            const vocarooPattern = /^https?:\/\/(www\.)?vocaroo\.com\/(embed\/)?[a-zA-Z0-9]+/;
             return vocarooPattern.test(link);
         }
         
@@ -391,18 +455,7 @@
             const btn = tipo === 'tutti' ? document.getElementById('filtroTutti') : document.getElementById('filtroMiei');
             if (btn) btn.dataset.filtroAttivo = tipo;
             
-            const categoriaFiltro = document.getElementById('filtroCategoria').value;
-            let filtrati = [...tuttiPodcast];
-            
-            if (tipo === 'miei' && utenteAttuale) {
-                filtrati = filtrati.filter(p => p.author_email === utenteAttuale.email);
-            }
-            
-            if (categoriaFiltro) {
-                filtrati = filtrati.filter(p => p.categoria === categoriaFiltro);
-            }
-            
-            mostraPodcast(filtrati);
+            cercaPodcast();
         }
         
         function filtraPerCategoria() {
@@ -515,6 +568,7 @@
                 const categoryEmoji = getCategoryEmoji(pod.categoria);
                 const isOwner = utenteAttuale?.email === pod.author_email;
                 const isPrivate = pod.privato === true;
+                const audioHtml = getAudioHtml(pod.vocaroo_link, pod.id);
                 
                 if (isPrivate && !isOwner) return '';
                 
@@ -534,15 +588,12 @@
                         
                         ${pod.qr_url ? `
                             <div class="flex justify-center">
-                                <img src="${pod.qr_url}" onclick="window.open('${pod.vocaroo_link}')" class="qr-code max-w-[180px] rounded-xl cursor-pointer">
+                                <img src="${pod.qr_url}" onclick="window.open('${pod.vocaroo_link}')" class="qr-code max-w-[180px] rounded-xl cursor-pointer" alt="QR Code per ${pod.scientist_name}">
                             </div>
                         ` : ''}
                         
                         <div class="mt-4">
-                            <audio controls class="w-full rounded-lg" onplay="tracciaAscolto('${pod.id}')">
-                                <source src="${pod.vocaroo_link}" type="audio/mpeg">
-                                Il tuo browser non supporta l'audio
-                            </audio>
+                            ${audioHtml}
                         </div>
                         
                         <div class="border-t pt-3 text-center">
@@ -733,7 +784,7 @@
             if (!nome) { mostraToast('Inserisci il nome dello scienziato', 'error'); return; }
             if (!fileSelezionato) { mostraToast('Carica un QR code', 'error'); return; }
             if (!link) { mostraToast('Inserisci il link Vocaroo', 'error'); return; }
-            if (!validaLinkVocaroo(link)) { mostraToast('Link Vocaroo non valido', 'error'); return; }
+            if (!validaLinkVocaroo(link)) { mostraToast('Link Vocaroo non valido. Assicurati che inizi con https://vocaroo.com/', 'error'); return; }
             if (!checkRateLimit()) return;
             
             mostraLoading(true);
@@ -768,7 +819,7 @@
                 
             } catch (error) {
                 console.error('Errore:', error);
-                mostraToast('Errore durante la pubblicazione', 'error');
+                mostraToast('Errore durante la pubblicazione: ' + error.message, 'error');
             } finally {
                 mostraLoading(false);
             }
