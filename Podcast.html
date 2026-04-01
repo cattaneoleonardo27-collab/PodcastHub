@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PodcastHub - Scienziati in Onda</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .qr-code {
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .qr-code:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
+
+    <!-- MODALE AGGIUNGI PODCAST -->
+    <div id="modalePodcast" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md mx-4">
+            <div class="gradient-bg rounded-t-3xl p-6">
+                <h2 class="text-2xl font-bold text-white text-center">🎙️ Nuovo Podcast</h2>
+                <p class="text-white/80 text-center text-sm">Scienziati in Onda</p>
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">🧪 Nome Scienziato *</label>
+                    <input type="text" id="nomeScienziato" placeholder="es. Marie Curie, Galileo Galilei..." 
+                           class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">📱 QR Code *</label>
+                    <div class="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:border-purple-500 cursor-pointer"
+                         onclick="document.getElementById('fileQr').click()">
+                        <input type="file" id="fileQr" accept="image/*" class="hidden" onchange="anteprimaQR(this)">
+                        <div id="qrPlaceholder" class="py-8">
+                            <div class="text-4xl mb-2">📷</div>
+                            <p class="text-gray-500 text-sm">Clicca per caricare il QR code</p>
+                            <p class="text-gray-400 text-xs">JPG, PNG (max 5MB)</p>
+                        </div>
+                        <img id="qrPreview" class="hidden mx-auto max-h-32 rounded-lg">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">🔊 Link Vocaroo *</label>
+                    <input type="url" id="linkVocaroo" placeholder="https://vocaroo.com/..." 
+                           class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                </div>
+                
+                <button onclick="pubblicaPodcast()" class="w-full gradient-bg text-white font-bold py-3 rounded-xl">
+                    📡 Pubblica Podcast
+                </button>
+                <button onclick="chiudiModale()" class="w-full text-gray-500 font-semibold py-2 rounded-xl">
+                    Annulla
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGIN CON NOME AUTORE -->
+    <div id="schermataLogin" class="flex items-center justify-center min-h-screen p-4">
+        <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="gradient-bg w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <span class="text-4xl">🎙️</span>
+                </div>
+                <h1 class="text-3xl font-bold text-gray-800 mb-2">PodcastHub</h1>
+                <p class="text-gray-500">Scienziati in Onda</p>
+            </div>
+            
+            <div class="space-y-4">
+                <input type="text" id="inputNome" placeholder="Il tuo nome (come vuoi apparire)" 
+                       class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                <input type="email" id="inputEmail" placeholder="Email" 
+                       class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                <input type="password" id="inputPassword" placeholder="Password" 
+                       class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none">
+                
+                <button onclick="registraUtente()" class="w-full bg-gray-800 text-white font-bold py-3 rounded-xl">
+                    📝 Registrati
+                </button>
+                <button onclick="accediUtente()" class="w-full gradient-bg text-white font-bold py-3 rounded-xl">
+                    🔑 Accedi
+                </button>
+            </div>
+            
+            <div id="messaggio" class="text-center text-sm mt-4 text-gray-500"></div>
+        </div>
+    </div>
+
+    <!-- APP PRINCIPALE -->
+    <div id="schermataApp" class="hidden">
+        <div class="gradient-bg px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+            <div>
+                <h1 class="font-bold text-2xl text-white">🎙️ PodcastHub</h1>
+                <p class="text-white/80 text-sm">Scienziati in Onda</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="apriModale()" class="bg-white/20 text-white px-5 py-2 rounded-xl font-semibold hover:bg-white/30">
+                    ➕ Aggiungi
+                </button>
+                <button onclick="esciUtente()" class="bg-red-500/80 text-white px-5 py-2 rounded-xl font-semibold hover:bg-red-600">
+                    Esci
+                </button>
+            </div>
+        </div>
+        
+        <div class="max-w-3xl mx-auto p-6">
+            <div id="listaPodcast" class="space-y-5"></div>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURAZIONE SUPABASE
+        const URL_SUPABASE = 'https://lcuhojjraxgvwdleslqq.supabase.co';
+        const CHIAVE_SUPABASE = 'sb_publishable_ci1TYB6NoFpMI4-6CQtKBA_jNZt6XyP';
+        
+        const supabaseClient = window.supabase.createClient(URL_SUPABASE, CHIAVE_SUPABASE);
+        
+        let utenteAttuale = null;
+        let fileSelezionato = null;
+        let nomeAutore = '';
+        
+        // REGISTRAZIONE CON NOME
+        window.registraUtente = async function() {
+            const nome = document.getElementById('inputNome').value.trim();
+            const email = document.getElementById('inputEmail').value;
+            const password = document.getElementById('inputPassword').value;
+            const msgDiv = document.getElementById('messaggio');
+            
+            if (!nome) {
+                msgDiv.innerHTML = '❌ Inserisci il tuo nome';
+                return;
+            }
+            if (!email || !password) {
+                msgDiv.innerHTML = '❌ Inserisci email e password';
+                return;
+            }
+            
+            // Registrazione con metadati
+            const { data, error } = await supabaseClient.auth.signUp({
+                email: email,
+                password: password,
+                options: {
+                    data: {
+                        full_name: nome
+                    }
+                }
+            });
+            
+            if (error) {
+                msgDiv.innerHTML = '❌ ' + error.message;
+            } else {
+                msgDiv.innerHTML = '✅ Registrato! Ora accedi.';
+                document.getElementById('inputNome').value = '';
+            }
+        };
+        
+        // LOGIN EMAIL
+        window.accediUtente = async function() {
+            const email = document.getElementById('inputEmail').value;
+            const password = document.getElementById('inputPassword').value;
+            const msgDiv = document.getElementById('messaggio');
+            
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+            if (error) {
+                msgDiv.innerHTML = '❌ ' + error.message;
+            } else {
+                utenteAttuale = data.user;
+                // Prende il nome dai metadati dell'utente
+                nomeAutore = utenteAttuale.user_metadata?.full_name || utenteAttuale.email.split('@')[0];
+                
+                document.getElementById('schermataLogin').classList.add('hidden');
+                document.getElementById('schermataApp').classList.remove('hidden');
+                caricaTuttiPodcast();
+            }
+        };
+        
+        window.esciUtente = async function() {
+            await supabaseClient.auth.signOut();
+            utenteAttuale = null;
+            document.getElementById('schermataLogin').classList.remove('hidden');
+            document.getElementById('schermataApp').classList.add('hidden');
+        };
+        
+        // FUNZIONI PODCAST
+        async function caricaTuttiPodcast() {
+            const { data } = await supabaseClient
+                .from('podcasts')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            const container = document.getElementById('listaPodcast');
+            
+            if (!data || data.length === 0) {
+                container.innerHTML = `<div class="text-center py-12"><div class="text-6xl mb-4">📭</div><p class="text-gray-500">Nessun podcast ancora</p></div>`;
+                return;
+            }
+            
+            container.innerHTML = data.map(pod => `
+                <div class="bg-white rounded-2xl shadow-lg p-6 space-y-4">
+                    <div class="text-center">
+                        <h3 class="text-2xl font-bold text-gray-800">🧪 ${escapeHtml(pod.scientist_name)}</h3>
+                    </div>
+                    ${pod.qr_url ? `
+                        <div class="flex justify-center">
+                            <img src="${pod.qr_url}" onclick="window.open('${pod.vocaroo_link}')" class="qr-code max-w-[180px] rounded-xl cursor-pointer">
+                        </div>
+                    ` : ''}
+                    <div class="border-t pt-3 text-center">
+                        <p class="text-sm text-gray-500">✍️ ${escapeHtml(pod.author_name)}</p>
+                        <p class="text-xs text-gray-400">${new Date(pod.created_at).toLocaleDateString()}</p>
+                    </div>
+                    ${utenteAttuale?.email === pod.author_email ? `<button onclick="eliminaPodcast('${pod.id}')" class="text-red-500 text-sm">🗑 Elimina</button>` : ''}
+                </div>
+            `).join('');
+        }
+        
+        window.eliminaPodcast = async function(id) {
+            if (confirm('Eliminare?')) {
+                await supabaseClient.from('podcasts').delete().eq('id', id);
+                caricaTuttiPodcast();
+            }
+        };
+        
+        // ANTEPRIMA QR
+        window.anteprimaQR = function(input) {
+            const file = input.files[0];
+            if (file) {
+                fileSelezionato = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('qrPlaceholder').classList.add('hidden');
+                    document.getElementById('qrPreview').src = e.target.result;
+                    document.getElementById('qrPreview').classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+        
+        // MODALE
+        window.apriModale = function() {
+            document.getElementById('modalePodcast').classList.remove('hidden');
+        };
+        window.chiudiModale = function() {
+            document.getElementById('modalePodcast').classList.add('hidden');
+        };
+        
+        // PUBBLICA PODCAST
+        window.pubblicaPodcast = async function() {
+            const nome = document.getElementById('nomeScienziato').value.trim();
+            const link = document.getElementById('linkVocaroo').value.trim();
+            
+            if (!nome) { alert('Inserisci il nome dello scienziato'); return; }
+            if (!fileSelezionato) { alert('Carica un QR code'); return; }
+            if (!link) { alert('Inserisci il link Vocaroo'); return; }
+            
+            const nomeFile = Date.now() + '_' + fileSelezionato.name;
+            await supabaseClient.storage.from('podcasts').upload(nomeFile, fileSelezionato);
+            const { data: urlData } = supabaseClient.storage.from('podcasts').getPublicUrl(nomeFile);
+            
+            await supabaseClient.from('podcasts').insert([{
+                scientist_name: nome,
+                qr_url: urlData.publicUrl,
+                vocaroo_link: link,
+                author_name: nomeAutore,
+                author_email: utenteAttuale.email
+            }]);
+            
+            chiudiModale();
+            caricaTuttiPodcast();
+            alert('✅ Podcast pubblicato!');
+            
+            // Reset
+            document.getElementById('nomeScienziato').value = '';
+            document.getElementById('linkVocaroo').value = '';
+            document.getElementById('fileQr').value = '';
+            document.getElementById('qrPlaceholder').classList.remove('hidden');
+            document.getElementById('qrPreview').classList.add('hidden');
+            fileSelezionato = null;
+        };
+        
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+        }
+        
+        // CONTROLLO SESSIONE
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                utenteAttuale = session.user;
+                nomeAutore = utenteAttuale.user_metadata?.full_name || utenteAttuale.email.split('@')[0];
+                document.getElementById('schermataLogin').classList.add('hidden');
+                document.getElementById('schermataApp').classList.remove('hidden');
+                caricaTuttiPodcast();
+            }
+        });
+        
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                utenteAttuale = session.user;
+                nomeAutore = utenteAttuale.user_metadata?.full_name || utenteAttuale.email.split('@')[0];
+                document.getElementById('schermataLogin').classList.add('hidden');
+                document.getElementById('schermataApp').classList.remove('hidden');
+                caricaTuttiPodcast();
+            }
+        });
+    </script>
+</body>
+</html>
